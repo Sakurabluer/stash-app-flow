@@ -1,3 +1,5 @@
+注：此为ai编写和发布，起因本人未在git上面看到有stash的中文安卓app，所以用ai编写了这一程序，如有需要请随意编译。如有使用问题可题issues在能力范围内尽量解决
+
 # Stash Flow
 
 Stash Flow 是面向 Android 的非官方 Stash Server 客户端，使用 Flutter 构建。
