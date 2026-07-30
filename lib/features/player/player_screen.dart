@@ -10,6 +10,7 @@ import '../../core/server/server_session.dart';
 import '../../shared/models/scene.dart';
 import '../../shared/providers.dart';
 import '../../shared/widgets/scene_widgets.dart';
+import 'video_viewport_transform.dart';
 
 class PlayerScreen extends ConsumerWidget {
   const PlayerScreen({super.key, required this.sceneId, this.initialScene});
@@ -70,7 +71,16 @@ class _PlayerViewState extends State<_PlayerView> {
   bool _fastForwarding = false;
   bool _wasPlayingBeforeFastForward = false;
   double _speedBeforeFastForward = 1;
+  VideoViewportTransform _videoTransform = VideoViewportTransform.identity;
+  VideoViewportTransform _gestureStartTransform =
+      VideoViewportTransform.identity;
+  Offset _gestureStartFocalPoint = Offset.zero;
+  double _gestureStartScale = 1;
+  int _gesturePointerCount = 0;
+  bool _transformGestureActive = false;
+  bool _showZoomIndicator = false;
   Timer? _controlsTimer;
+  Timer? _zoomIndicatorTimer;
   String? _error;
 
   @override
@@ -166,9 +176,110 @@ class _PlayerViewState extends State<_PlayerView> {
     _scheduleControlsHide();
   }
 
+  void _startTransformGesture(
+    ScaleStartDetails details,
+    Size viewportSize,
+    double videoAspectRatio,
+  ) {
+    if (!_controller.value.isInitialized || _error != null) return;
+    _gestureStartTransform = _videoTransform.clamped(
+      viewportSize: viewportSize,
+      videoAspectRatio: videoAspectRatio,
+    );
+    _gestureStartFocalPoint = details.localFocalPoint;
+    _gestureStartScale = 1;
+    _gesturePointerCount = details.pointerCount;
+    _transformGestureActive =
+        details.pointerCount >= 2 || _gestureStartTransform.isZoomed;
+    if (_transformGestureActive) {
+      _beginTransformFeedback();
+    }
+  }
+
+  void _updateTransformGesture(
+    ScaleUpdateDetails details,
+    Size viewportSize,
+    double videoAspectRatio,
+  ) {
+    if (!_controller.value.isInitialized || _error != null) return;
+
+    if (!_transformGestureActive) {
+      if (details.pointerCount < 2) return;
+      _gestureStartTransform = _videoTransform.clamped(
+        viewportSize: viewportSize,
+        videoAspectRatio: videoAspectRatio,
+      );
+      _gestureStartFocalPoint = details.localFocalPoint;
+      _gestureStartScale = details.scale;
+      _gesturePointerCount = details.pointerCount;
+      _transformGestureActive = true;
+      _beginTransformFeedback();
+      return;
+    }
+
+    if (details.pointerCount != _gesturePointerCount) {
+      _gestureStartTransform = _videoTransform.clamped(
+        viewportSize: viewportSize,
+        videoAspectRatio: videoAspectRatio,
+      );
+      _gestureStartFocalPoint = details.localFocalPoint;
+      _gestureStartScale = details.scale;
+      _gesturePointerCount = details.pointerCount;
+      return;
+    }
+
+    final normalizedScale = _gestureStartScale == 0
+        ? 1.0
+        : details.scale / _gestureStartScale;
+    setState(() {
+      _videoTransform = VideoViewportTransform.fromGesture(
+        start: _gestureStartTransform,
+        startFocalPoint: _gestureStartFocalPoint,
+        focalPoint: details.localFocalPoint,
+        scaleFactor: normalizedScale,
+        viewportSize: viewportSize,
+        videoAspectRatio: videoAspectRatio,
+      );
+    });
+  }
+
+  void _beginTransformFeedback() {
+    _controlsTimer?.cancel();
+    _zoomIndicatorTimer?.cancel();
+    if (_fastForwarding) unawaited(_stopFastForward());
+    if (!_showZoomIndicator) {
+      setState(() => _showZoomIndicator = true);
+    }
+  }
+
+  void _endTransformGesture() {
+    if (!_transformGestureActive) return;
+    _transformGestureActive = false;
+    _gesturePointerCount = 0;
+    _zoomIndicatorTimer?.cancel();
+    _zoomIndicatorTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _showZoomIndicator = false);
+    });
+    _scheduleControlsHide();
+  }
+
+  void _resetVideoTransform() {
+    _zoomIndicatorTimer?.cancel();
+    setState(() {
+      _videoTransform = VideoViewportTransform.identity;
+      _showZoomIndicator = true;
+    });
+    _zoomIndicatorTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _showZoomIndicator = false);
+    });
+    HapticFeedback.selectionClick();
+    _scheduleControlsHide();
+  }
+
   @override
   void dispose() {
     _controlsTimer?.cancel();
+    _zoomIndicatorTimer?.cancel();
     _controller
       ..removeListener(_onPlayerChanged)
       ..dispose();
@@ -187,6 +298,14 @@ class _PlayerViewState extends State<_PlayerView> {
   @override
   Widget build(BuildContext context) {
     final value = _controller.value;
+    final viewportSize = MediaQuery.sizeOf(context);
+    final videoAspectRatio = value.aspectRatio == 0
+        ? 16 / 9
+        : value.aspectRatio;
+    final visibleTransform = _videoTransform.clamped(
+      viewportSize: viewportSize,
+      videoAspectRatio: videoAspectRatio,
+    );
     final durationMs = value.duration.inMilliseconds.toDouble();
     final positionMs = value.position.inMilliseconds
         .clamp(0, value.duration.inMilliseconds)
@@ -197,18 +316,36 @@ class _PlayerViewState extends State<_PlayerView> {
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _toggleControls,
+        onScaleStart: (details) =>
+            _startTransformGesture(details, viewportSize, videoAspectRatio),
+        onScaleUpdate: (details) =>
+            _updateTransformGesture(details, viewportSize, videoAspectRatio),
+        onScaleEnd: (_) => _endTransformGesture(),
+        onLongPressStart: (details) {
+          if (details.localPosition.dx >= viewportSize.width * 0.55) {
+            unawaited(_startFastForward());
+          }
+        },
+        onLongPressEnd: (_) => unawaited(_stopFastForward()),
+        onLongPressCancel: () => unawaited(_stopFastForward()),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Center(
-              child: value.isInitialized
-                  ? AspectRatio(
-                      aspectRatio: value.aspectRatio == 0
-                          ? 16 / 9
-                          : value.aspectRatio,
-                      child: VideoPlayer(_controller),
-                    )
-                  : SceneImage(scene: widget.scene, fit: BoxFit.contain),
+            ClipRect(
+              child: Transform.translate(
+                offset: visibleTransform.offset,
+                child: Transform.scale(
+                  scale: visibleTransform.scale,
+                  child: Center(
+                    child: value.isInitialized
+                        ? AspectRatio(
+                            aspectRatio: videoAspectRatio,
+                            child: VideoPlayer(_controller),
+                          )
+                        : SceneImage(scene: widget.scene, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
             ),
             if (_initializing)
               const Center(child: CircularProgressIndicator())
@@ -224,15 +361,32 @@ class _PlayerViewState extends State<_PlayerView> {
                 ),
               ),
             Positioned(
-              top: 0,
+              top: MediaQuery.paddingOf(context).top + 54,
+              left: 0,
               right: 0,
-              bottom: 0,
-              width: MediaQuery.sizeOf(context).width * 0.45,
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onLongPressStart: (_) => _startFastForward(),
-                onLongPressEnd: (_) => _stopFastForward(),
-                onLongPressCancel: _stopFastForward,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _showZoomIndicator ? 1 : 0,
+                  duration: const Duration(milliseconds: 150),
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xCC111311),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        child: Text(
+                          '${visibleTransform.scale.toStringAsFixed(1)}x',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
             if (_fastForwarding)
@@ -304,6 +458,12 @@ class _PlayerViewState extends State<_PlayerView> {
                                 ),
                               ),
                             ),
+                            if (visibleTransform.isZoomed)
+                              IconButton(
+                                tooltip: '恢复原始画面',
+                                onPressed: _resetVideoTransform,
+                                icon: const Icon(Icons.center_focus_strong),
+                              ),
                             PopupMenuButton<double>(
                               tooltip: '播放速度',
                               initialValue: value.playbackSpeed,

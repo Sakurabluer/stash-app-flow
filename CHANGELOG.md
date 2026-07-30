@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 - 2026-07-30
+
+- Added focal-point pinch zoom from 1x to 5x during video playback.
+- Added single-finger panning while zoomed and a one-tap view reset.
+- Preserved tap controls and right-side hold-for-2x playback gestures.
+
 ## 1.0.1 - 2026-07-29
 
 - Added multi-server profiles with isolated secure API keys and favorites.
