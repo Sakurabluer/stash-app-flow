@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../shared/models/scene.dart';
+import '../../shared/models/scene_stream.dart';
 import '../../shared/models/tag_media.dart';
 
 class ServerInfo {
@@ -185,6 +186,26 @@ class StashApiClient {
         : null;
   }
 
+  Future<List<SceneStreamEndpoint>> findSceneStreams(String id) async {
+    final data = await _query(
+      _sceneStreamsQuery,
+      variables: <String, dynamic>{'id': id},
+    );
+    final scene = data['findScene'];
+    if (scene is! Map) return const [];
+    final streams =
+        (Map<String, dynamic>.from(scene)['sceneStreams'] as List<dynamic>?) ??
+        const [];
+    return streams
+        .map(
+          (item) => SceneStreamEndpoint.fromJson(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
+        .where((stream) => stream.url.isNotEmpty)
+        .toList(growable: false);
+  }
+
   static const _sceneFields = r'''
     id title details date rating100 play_count resume_time
     paths { screenshot stream }
@@ -228,6 +249,18 @@ class StashApiClient {
       '''
     query FindScene(\$id: ID!) {
       findScene(id: \$id) { $_sceneFields }
+    }
+  ''';
+
+  static const _sceneStreamsQuery = r'''
+    query SceneStreams($id: ID!) {
+      findScene(id: $id) {
+        sceneStreams {
+          url
+          mime_type
+          label
+        }
+      }
     }
   ''';
 }

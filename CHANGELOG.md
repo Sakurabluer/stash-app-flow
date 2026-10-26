@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added player stream selection using the server's available direct and
+  transcoded endpoints, preserving playback position and speed when switching.
+
 ## 1.0.2 - 2026-07-30
 
 - Added focal-point pinch zoom from 1x to 5x during video playback.

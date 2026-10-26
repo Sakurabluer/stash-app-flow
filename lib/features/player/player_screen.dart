@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../app/theme.dart';
+import '../../core/network/stash_api_client.dart';
 import '../../core/server/server_session.dart';
 import '../../shared/models/scene.dart';
+import '../../shared/models/scene_stream.dart';
 import '../../shared/providers.dart';
 import '../../shared/widgets/scene_widgets.dart';
 import 'video_viewport_transform.dart';
@@ -21,8 +23,13 @@ class PlayerScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(activeServerSessionProvider);
-    if (initialScene != null && session != null) {
-      return _PlayerView(scene: initialScene!, apiKey: session.apiKey);
+    final api = ref.watch(stashApiProvider);
+    if (initialScene != null && session != null && api != null) {
+      return _PlayerView(
+        scene: initialScene!,
+        api: api,
+        apiKey: session.apiKey,
+      );
     }
     return ref
         .watch(sceneProvider(sceneId))
@@ -40,7 +47,7 @@ class PlayerScreen extends ConsumerWidget {
               message: error.toString(),
             ),
           ),
-          data: (scene) => scene == null || session == null
+          data: (scene) => scene == null || session == null || api == null
               ? const Scaffold(
                   backgroundColor: Colors.black,
                   body: EmptyState(
@@ -49,15 +56,20 @@ class PlayerScreen extends ConsumerWidget {
                     message: '场景或服务器连接已失效。',
                   ),
                 )
-              : _PlayerView(scene: scene, apiKey: session.apiKey),
+              : _PlayerView(scene: scene, api: api, apiKey: session.apiKey),
         );
   }
 }
 
 class _PlayerView extends StatefulWidget {
-  const _PlayerView({required this.scene, required this.apiKey});
+  const _PlayerView({
+    required this.scene,
+    required this.api,
+    required this.apiKey,
+  });
 
   final Scene scene;
+  final StashApiClient api;
   final String apiKey;
 
   @override
@@ -65,9 +77,13 @@ class _PlayerView extends StatefulWidget {
 }
 
 class _PlayerViewState extends State<_PlayerView> {
-  late final VideoPlayerController _controller;
+  late VideoPlayerController _controller;
+  late SceneStreamEndpoint _selectedStream;
+  List<SceneStreamEndpoint> _availableStreams = const [];
+  bool _serverStreamsLoaded = false;
   bool _showControls = true;
   bool _initializing = true;
+  bool _switchingStream = false;
   bool _fastForwarding = false;
   bool _wasPlayingBeforeFastForward = false;
   double _speedBeforeFastForward = 1;
@@ -92,20 +108,32 @@ class _PlayerViewState extends State<_PlayerView> {
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _controller = VideoPlayerController.networkUrl(
-      widget.scene.sanitizedStreamUri,
-      httpHeaders: {'ApiKey': widget.apiKey},
-    )..addListener(_onPlayerChanged);
+    _selectedStream = SceneStreamEndpoint(
+      url: widget.scene.sanitizedStreamUri.toString(),
+      mimeType: null,
+      label: 'Direct stream',
+    );
+    _availableStreams = [_selectedStream];
+    _controller = _createController(_selectedStream)
+      ..addListener(_onPlayerChanged);
     _initialize();
+    unawaited(_loadStreamOptions());
   }
+
+  VideoPlayerController _createController(SceneStreamEndpoint stream) =>
+      VideoPlayerController.networkUrl(
+        stream.sanitizedUri,
+        httpHeaders: {'ApiKey': widget.apiKey},
+      );
 
   Future<void> _initialize() async {
     try {
       await _controller.initialize();
-      if (widget.scene.resumeSeconds > 0) {
-        await _controller.seekTo(
-          Duration(seconds: widget.scene.resumeSeconds.round()),
-        );
+      final resumePosition = Duration(
+        seconds: widget.scene.resumeSeconds.round(),
+      );
+      if (resumePosition > Duration.zero) {
+        await _controller.seekTo(resumePosition);
       }
       await _controller.play();
     } catch (_) {
@@ -114,6 +142,127 @@ class _PlayerViewState extends State<_PlayerView> {
     if (mounted) {
       setState(() => _initializing = false);
       if (_error == null) _scheduleControlsHide();
+      _switchToAvailableStreamIfNeeded();
+    }
+  }
+
+  Future<void> _loadStreamOptions() async {
+    try {
+      final streams = await widget.api.findSceneStreams(widget.scene.id);
+      if (!mounted || streams.isEmpty) return;
+
+      final uniqueStreams = <String, SceneStreamEndpoint>{};
+      for (final stream in streams) {
+        uniqueStreams.putIfAbsent(stream.sanitizedUrl, () => stream);
+      }
+
+      final selected = uniqueStreams.remove(_selectedStream.sanitizedUrl);
+      setState(() {
+        _serverStreamsLoaded = true;
+        if (selected != null) _selectedStream = selected;
+        _availableStreams = <SceneStreamEndpoint>[
+          ?selected,
+          ...uniqueStreams.values,
+        ];
+      });
+      _switchToAvailableStreamIfNeeded();
+    } catch (_) {
+      // Keep direct playback available when older servers lack sceneStreams.
+    }
+  }
+
+  void _switchToAvailableStreamIfNeeded() {
+    if (!_serverStreamsLoaded ||
+        _initializing ||
+        _switchingStream ||
+        _availableStreams.isEmpty ||
+        _availableStreams.any(
+          (stream) => stream.sanitizedUrl == _selectedStream.sanitizedUrl,
+        )) {
+      return;
+    }
+
+    final failedToInitialize =
+        !_controller.value.isInitialized || _error != null;
+    unawaited(
+      _switchStream(
+        _availableStreams.first,
+        autoplayIfUnavailable: failedToInitialize,
+      ),
+    );
+  }
+
+  String _streamLabel(SceneStreamEndpoint stream) {
+    final label = stream.label.isEmpty ? 'Direct stream' : stream.label;
+    return label
+        .replaceAll('Direct stream', '原画直连')
+        .replaceAll('Full HD (1080p)', '1080p')
+        .replaceAll('4K (2160p)', '4K')
+        .replaceAll('HD (720p)', '720p')
+        .replaceAll('Standard (480p)', '480p')
+        .replaceAll('Low (240p)', '240p');
+  }
+
+  Future<void> _switchStream(
+    SceneStreamEndpoint stream, {
+    bool autoplayIfUnavailable = false,
+  }) async {
+    if (_switchingStream ||
+        stream.sanitizedUrl == _selectedStream.sanitizedUrl) {
+      return;
+    }
+
+    final previous = _controller;
+    final previousValue = previous.value;
+    final position = previousValue.position;
+    final wasPlaying = previousValue.isPlaying;
+    final shouldPlay =
+        wasPlaying ||
+        (autoplayIfUnavailable &&
+            (!previousValue.isInitialized || _error != null));
+    final playbackSpeed = previousValue.playbackSpeed;
+    VideoPlayerController? replacement;
+    setState(() => _switchingStream = true);
+
+    try {
+      if (wasPlaying) await previous.pause();
+      final next = _createController(stream);
+      replacement = next;
+      await next.initialize();
+      final targetPosition =
+          next.value.duration > Duration.zero && position > next.value.duration
+          ? next.value.duration
+          : position;
+      if (targetPosition > Duration.zero) await next.seekTo(targetPosition);
+      if (playbackSpeed != 1) {
+        await next.setPlaybackSpeed(playbackSpeed);
+      }
+      if (shouldPlay) await next.play();
+
+      if (!mounted) {
+        await next.dispose();
+        return;
+      }
+
+      previous.removeListener(_onPlayerChanged);
+      setState(() {
+        _controller = next;
+        _selectedStream = stream;
+        _videoTransform = VideoViewportTransform.identity;
+        _switchingStream = false;
+        _error = null;
+      });
+      next.addListener(_onPlayerChanged);
+      await previous.dispose();
+      _scheduleControlsHide();
+    } catch (_) {
+      await replacement?.dispose();
+      if (wasPlaying && mounted) await previous.play();
+      if (!mounted) return;
+      setState(() => _switchingStream = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法切换到 ${_streamLabel(stream)}，已保留当前播放方式。')),
+      );
     }
   }
 
@@ -349,6 +498,17 @@ class _PlayerViewState extends State<_PlayerView> {
             ),
             if (_initializing)
               const Center(child: CircularProgressIndicator())
+            else if (_switchingStream)
+              const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text('正在切换播放方式'),
+                  ],
+                ),
+              )
             else if (_error != null)
               Center(
                 child: Padding(
@@ -458,6 +618,62 @@ class _PlayerViewState extends State<_PlayerView> {
                                 ),
                               ),
                             ),
+                            if (_availableStreams.length > 1 && !_initializing)
+                              PopupMenuButton<SceneStreamEndpoint>(
+                                tooltip: '切换播放方式',
+                                enabled: !_initializing && !_switchingStream,
+                                onSelected: (stream) =>
+                                    unawaited(_switchStream(stream)),
+                                itemBuilder: (_) => [
+                                  for (final stream in _availableStreams)
+                                    PopupMenuItem(
+                                      value: stream,
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              _streamLabel(stream),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (stream.sanitizedUrl ==
+                                              _selectedStream.sanitizedUrl)
+                                            const Icon(
+                                              Icons.check_rounded,
+                                              size: 18,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 10,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.high_quality_outlined,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 110,
+                                        ),
+                                        child: Text(
+                                          _streamLabel(_selectedStream),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             if (visibleTransform.isZoomed)
                               IconButton(
                                 tooltip: '恢复原始画面',
