@@ -19,6 +19,26 @@ class SceneStreamEndpoint {
   Uri get sanitizedUri => sanitizeMediaUri(Uri.parse(url));
 
   String get sanitizedUrl => sanitizedUri.toString();
+
+  bool get supportsServerStart {
+    final path = sanitizedUri.path.toLowerCase();
+    return path.endsWith('.mp4') ||
+        path.endsWith('.webm') ||
+        path.endsWith('.mkv');
+  }
+
+  Uri uriAtStart(Duration position) {
+    final uri = sanitizedUri;
+    if (!supportsServerStart || position <= Duration.zero) return uri;
+
+    final seconds = (position.inMilliseconds / 1000).toStringAsFixed(3);
+    final start = seconds
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+    final queryParameters = Map<String, dynamic>.from(uri.queryParametersAll)
+      ..['start'] = start;
+    return uri.replace(queryParameters: queryParameters);
+  }
 }
 
 Uri sanitizeMediaUri(Uri uri) {

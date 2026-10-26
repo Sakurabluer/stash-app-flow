@@ -12,6 +12,7 @@ import '../../shared/models/scene.dart';
 import '../../shared/models/scene_stream.dart';
 import '../../shared/providers.dart';
 import '../../shared/widgets/scene_widgets.dart';
+import 'player_timeline.dart';
 import 'video_viewport_transform.dart';
 
 class PlayerScreen extends ConsumerWidget {
@@ -80,6 +81,8 @@ class _PlayerViewState extends State<_PlayerView> {
   late VideoPlayerController _controller;
   late SceneStreamEndpoint _selectedStream;
   List<SceneStreamEndpoint> _availableStreams = const [];
+  Duration _streamStartOffset = Duration.zero;
+  Duration? _sliderPreviewPosition;
   bool _serverStreamsLoaded = false;
   bool _showControls = true;
   bool _initializing = true;
@@ -120,11 +123,13 @@ class _PlayerViewState extends State<_PlayerView> {
     unawaited(_loadStreamOptions());
   }
 
-  VideoPlayerController _createController(SceneStreamEndpoint stream) =>
-      VideoPlayerController.networkUrl(
-        stream.sanitizedUri,
-        httpHeaders: {'ApiKey': widget.apiKey},
-      );
+  VideoPlayerController _createController(
+    SceneStreamEndpoint stream, {
+    Duration? startAt,
+  }) => VideoPlayerController.networkUrl(
+    stream.uriAtStart(startAt ?? Duration.zero),
+    httpHeaders: {'ApiKey': widget.apiKey},
+  );
 
   Future<void> _initialize() async {
     try {
@@ -206,15 +211,18 @@ class _PlayerViewState extends State<_PlayerView> {
   Future<void> _switchStream(
     SceneStreamEndpoint stream, {
     bool autoplayIfUnavailable = false,
+    Duration? startAt,
   }) async {
     if (_switchingStream ||
-        stream.sanitizedUrl == _selectedStream.sanitizedUrl) {
+        (startAt == null &&
+            stream.sanitizedUrl == _selectedStream.sanitizedUrl)) {
       return;
     }
 
     final previous = _controller;
     final previousValue = previous.value;
-    final position = previousValue.position;
+    final position = _timelinePosition(previousValue);
+    final targetPosition = startAt ?? position;
     final wasPlaying = previousValue.isPlaying;
     final shouldPlay =
         wasPlaying ||
@@ -226,14 +234,23 @@ class _PlayerViewState extends State<_PlayerView> {
 
     try {
       if (wasPlaying) await previous.pause();
-      final next = _createController(stream);
+      final serverStart = stream.supportsServerStart
+          ? targetPosition
+          : Duration.zero;
+      final next = _createController(stream, startAt: serverStart);
       replacement = next;
       await next.initialize();
-      final targetPosition =
-          next.value.duration > Duration.zero && position > next.value.duration
-          ? next.value.duration
-          : position;
-      if (targetPosition > Duration.zero) await next.seekTo(targetPosition);
+      if (targetPosition > Duration.zero && !stream.supportsServerStart) {
+        if (next.value.duration <= Duration.zero) {
+          throw StateError(
+            'The selected stream does not expose a seekable timeline.',
+          );
+        }
+        final seekPosition = targetPosition > next.value.duration
+            ? next.value.duration
+            : targetPosition;
+        await next.seekTo(seekPosition);
+      }
       if (playbackSpeed != 1) {
         await next.setPlaybackSpeed(playbackSpeed);
       }
@@ -248,6 +265,8 @@ class _PlayerViewState extends State<_PlayerView> {
       setState(() {
         _controller = next;
         _selectedStream = stream;
+        _streamStartOffset = serverStart;
+        _sliderPreviewPosition = null;
         _videoTransform = VideoViewportTransform.identity;
         _switchingStream = false;
         _error = null;
@@ -270,15 +289,84 @@ class _PlayerViewState extends State<_PlayerView> {
     if (mounted && !_initializing) setState(() {});
   }
 
+  Duration _timelineDuration([VideoPlayerValue? value]) =>
+      PlayerTimeline.duration(
+        sceneDurationSeconds: widget.scene.durationSeconds,
+        streamDuration: (value ?? _controller.value).duration,
+      );
+
+  Duration _timelinePosition([VideoPlayerValue? value]) =>
+      PlayerTimeline.position(
+        streamPosition: (value ?? _controller.value).position,
+        streamStart: _streamStartOffset,
+        duration: _timelineDuration(value),
+      );
+
+  SceneStreamEndpoint? _findServerSeekStream() {
+    final resolution =
+        _selectedStream.sanitizedUri.queryParameters['resolution'];
+    final candidates = _availableStreams.where((stream) {
+      final path = stream.sanitizedUri.path.toLowerCase();
+      return stream.supportsServerStart && path.endsWith('.mp4');
+    });
+    for (final stream in candidates) {
+      if (stream.sanitizedUri.queryParameters['resolution'] == resolution) {
+        return stream;
+      }
+    }
+    return candidates.firstOrNull;
+  }
+
+  Future<void> _seekTo(Duration position) async {
+    if (!_controller.value.isInitialized) return;
+    final duration = _timelineDuration();
+    final target = Duration(
+      milliseconds: position.inMilliseconds.clamp(0, duration.inMilliseconds),
+    );
+    setState(() => _sliderPreviewPosition = target);
+    _controlsTimer?.cancel();
+
+    try {
+      if (_selectedStream.supportsServerStart) {
+        await _switchStream(_selectedStream, startAt: target);
+      } else if (_controller.value.duration > Duration.zero) {
+        final streamTarget = target > _controller.value.duration
+            ? _controller.value.duration
+            : target;
+        await _controller.seekTo(streamTarget);
+      } else {
+        final fallback = _findServerSeekStream();
+        if (fallback == null) {
+          throw StateError('No server-seekable stream is available.');
+        }
+        await _switchStream(fallback, startAt: target);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('当前播放流暂不支持跳转。')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _sliderPreviewPosition = null);
+        _scheduleControlsHide();
+      }
+    }
+  }
+
   Future<void> _seekBy(Duration offset) async {
     if (!_controller.value.isInitialized) return;
-    final value = _controller.value;
-    final targetMilliseconds =
-        (value.position.inMilliseconds + offset.inMilliseconds)
-            .clamp(0, value.duration.inMilliseconds)
-            .toInt();
-    await _controller.seekTo(Duration(milliseconds: targetMilliseconds));
-    _scheduleControlsHide();
+    final duration = _timelineDuration();
+    await _seekTo(
+      Duration(
+        milliseconds:
+            (_timelinePosition().inMilliseconds + offset.inMilliseconds).clamp(
+              0,
+              duration.inMilliseconds,
+            ),
+      ),
+    );
   }
 
   void _scheduleControlsHide() {
@@ -455,9 +543,12 @@ class _PlayerViewState extends State<_PlayerView> {
       viewportSize: viewportSize,
       videoAspectRatio: videoAspectRatio,
     );
-    final durationMs = value.duration.inMilliseconds.toDouble();
-    final positionMs = value.position.inMilliseconds
-        .clamp(0, value.duration.inMilliseconds)
+    final timelineDuration = _timelineDuration(value);
+    final timelinePosition = _timelinePosition(value);
+    final sliderPosition = _sliderPreviewPosition ?? timelinePosition;
+    final durationMs = timelineDuration.inMilliseconds.toDouble();
+    final positionMs = sliderPosition.inMilliseconds
+        .clamp(0, timelineDuration.inMilliseconds)
         .toDouble();
 
     return Scaffold(
@@ -784,7 +875,7 @@ class _PlayerViewState extends State<_PlayerView> {
                             child: Row(
                               children: [
                                 Text(
-                                  _time(value.position),
+                                  _time(sliderPosition),
                                   style: const TextStyle(fontSize: 11),
                                 ),
                                 Expanded(
@@ -793,14 +884,22 @@ class _PlayerViewState extends State<_PlayerView> {
                                     max: durationMs <= 0 ? 1 : durationMs,
                                     onChangeStart: (_) =>
                                         _controlsTimer?.cancel(),
-                                    onChanged: (position) => _controller.seekTo(
-                                      Duration(milliseconds: position.round()),
+                                    onChanged: (position) => setState(
+                                      () => _sliderPreviewPosition = Duration(
+                                        milliseconds: position.round(),
+                                      ),
                                     ),
-                                    onChangeEnd: (_) => _scheduleControlsHide(),
+                                    onChangeEnd: (position) => unawaited(
+                                      _seekTo(
+                                        Duration(
+                                          milliseconds: position.round(),
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 Text(
-                                  _time(value.duration),
+                                  _time(timelineDuration),
                                   style: const TextStyle(fontSize: 11),
                                 ),
                               ],
