@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.3 - 2026-10-26
 
 - Added player stream selection using the server's available direct and
   transcoded endpoints, preserving playback position and speed when switching.
