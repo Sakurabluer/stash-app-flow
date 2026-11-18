@@ -1,10 +1,31 @@
-注：此为ai编写和发布，起因本人未在git上面看到有stash的中文安卓app，所以用ai编写了这一程序，如有需要请随意编译。如有使用问题可题issues在能力范围内尽量解决
+本项目由 AI 辅助开发，欢迎反馈问题或自行编译使用。
 
 # Stash Flow
 
-Stash Flow 是面向 Android 的非官方 Stash Server 客户端，使用 Flutter 构建。
+Stash Flow 是面向 Android 的非官方中文 Stash Server 客户端，支持视频播放、图片浏览、目录汇总、标签收藏和媒体扫描，使用 Flutter 构建。
 
 > 本项目与 Stash 项目及其维护者不存在隶属、授权或背书关系。Stash 名称仅用于说明兼容的服务端。
+
+## 下载与安装
+
+当前版本：[Stash Flow v1.2.0](https://github.com/Sakurabluer/stash-app-flow/releases/tag/v1.2.0)。
+
+- [下载 64 位安卓 APK（arm64-v8a）](https://github.com/Sakurabluer/stash-app-flow/releases/download/v1.2.0/stash-flow-v1.2.0-arm64-v8a.apk)
+- [下载 SHA256 校验文件](https://github.com/Sakurabluer/stash-app-flow/releases/download/v1.2.0/stash-flow-v1.2.0-SHA256SUMS.txt)
+- 要求 Android 8.0 或更高版本，本版提供 ARM64 安装包。
+- 使用原发布签名，支持覆盖升级旧正式版及 1.2.0-test，保留本机连接与收藏。
+- 首次使用请连接自己的 Stash Server，并填写 API Key。安装包不附带服务器账号或媒体内容。
+
+## v1.2.0 更新
+
+- 底部导航调整为“首页 / 媒体库 / 收藏 / 全部 / 设置”，搜索保留在首页、媒体库顶部。
+- “全部”支持浏览已入库的视频与图片目录、标签、常用目录和隐藏目录。
+- 目录新增“全部视频 / 全部图片”，一次浏览当前目录及所有子目录的内容，支持分页、排序和来源目录跳转。
+- 补齐纯图片目录与压缩图库浏览，支持缩略图重试、大图缩放、上一张/下一张和跨页查看。
+- 支持手动扫描媒体库或指定目录、任务恢复与状态查看，完成后刷新目录和媒体列表。
+- 整理重复按钮、调整文案，移除尚未生效的设置开关。
+
+完整更新及现有限制见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 功能
 
@@ -38,13 +59,6 @@ flutter build apk --debug
 
 详细恢复和构建说明见 [SOURCE_BACKUP_GUIDE.md](SOURCE_BACKUP_GUIDE.md)。
 正式发布签名的本机配置说明见 [SIGNING.md](SIGNING.md)。
-
-## 项目 Skill
-
-[stash-flow-delivery](.agents/skills/stash-flow-delivery/SKILL.md) 记录需求确认、
-功能开发、Stash 联调、测试、ARM64 APK 打包及验收后提交 Git 的流程。
-项目根目录的 [AGENTS.md](AGENTS.md) 提供入口；Skill 附带构建和 APK 校验脚本。
-测试包默认仅本地交付，按用户当前指令决定提交、推送或发布。
 
 ## 数据与隐私
 

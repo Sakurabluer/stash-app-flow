@@ -4,7 +4,7 @@
 
 - 应用名称：Stash Flow
 - 应用包名：`io.github.sakurabluer.stashflow`
-- 当前源码版本：`1.2.0+5007`（本轮测试包名称为 `1.2.0-test`）
+- 当前源码版本：`1.2.0+5008`（正式版）
 - Flutter：`3.44.8`
 - Dart：`3.12.2`
 - Android 最低版本：API 26（Android 8.0）
@@ -21,7 +21,6 @@
 - `.metadata`、`.fvmrc`：Flutter 项目信息
 - `README.md`、`FLUTTER_DEVELOPMENT_GUIDE.md`：项目说明
 - `SOURCE_BACKUP_GUIDE.md`：本手册
-- `AGENTS.md`、`.agents/skills/stash-flow-delivery/`：项目开发与交付 Skill 和构建校验脚本
 
 压缩包不包含构建产物、Flutter SDK、Gradle 缓存、IDE 配置和
 `android/local.properties`。这些文件体积大或包含当前电脑的绝对路径，恢复时会自动生成。
@@ -79,14 +78,19 @@ adb install -r build\app\outputs\flutter-apk\app-debug.apk
 发布或传到手机前，在 `pubspec.yaml` 中递增版本，例如：
 
 ```yaml
-version: 1.3.0+5008
+version: 1.3.0+5009
 ```
 
 加号前是用户看到的版本号，加号后是 Android `versionCode`，每次发布必须增大。
 当前工程的 release 构建使用独立发布签名，配置见 `SIGNING.md`。测试包也使用原发布签名，便于覆盖安装并保留连接与收藏。密钥文件和密码不能提交或放入普通源码备份。
 
-ARM64 测试包的版本递增、签名、ABI 检查和提交推送步骤见
-[项目交付 Skill](.agents/skills/stash-flow-delivery/SKILL.md)。源码更新不自动发布 GitHub Release。
+构建 ARM64 正式包：
+
+```powershell
+flutter build apk --release --target-platform=android-arm64 --build-name=1.2.0 --build-number=5008
+```
+
+发布前用 Android Build Tools 的 `aapt dump badging` 和 `apksigner verify --print-certs` 核对版本、仅 arm64-v8a 和原发布签名，并生成 SHA256 校验和。安装包上传到 GitHub Release，更新 README 下载链接和中文版本说明。
 
 ## 主要模块
 
