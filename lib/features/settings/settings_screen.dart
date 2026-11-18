@@ -13,8 +13,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _wifiOnly = true;
-  bool _autoPlay = true;
   String? _busyServerId;
 
   Future<void> _switchServer(SavedServer server) async {
@@ -110,50 +108,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 22),
-          const _GroupLabel('媒体库'),
+          const _GroupLabel('媒体库（连接时统计）'),
           Card(
             child: Column(
               children: [
                 _StatTile(
                   icon: Icons.movie_outlined,
-                  label: '场景',
+                  label: '视频总数',
                   value: '${session.sceneCount}',
-                  onTap: () => context.push('/scene-categories'),
                 ),
                 const Divider(height: 1),
                 _StatTile(
                   icon: Icons.sell_outlined,
-                  label: '标签',
+                  label: '标签总数',
                   value: '${session.tagCount}',
-                  onTap: () => context.push('/tags'),
                 ),
                 const Divider(height: 1),
                 _StatTile(
                   icon: Icons.info_outline_rounded,
                   label: '服务端版本',
                   value: session.version,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          const _GroupLabel('播放与网络'),
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  secondary: const Icon(Icons.play_circle_outline_rounded),
-                  title: const Text('自动播放'),
-                  subtitle: const Text('打开播放器后立即开始'),
-                  value: _autoPlay,
-                  onChanged: (value) => setState(() => _autoPlay = value),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  secondary: const Icon(Icons.wifi_rounded),
-                  title: const Text('仅 Wi-Fi 加载预览'),
-                  value: _wifiOnly,
-                  onChanged: (value) => setState(() => _wifiOnly = value),
                 ),
               ],
             ),
@@ -263,13 +237,11 @@ class _StatTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
-    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String value;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -277,14 +249,7 @@ class _StatTile extends StatelessWidget {
     title: Text(label),
     trailing: Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(value, style: const TextStyle(color: StashColors.muted)),
-        if (onTap != null) ...[
-          const SizedBox(width: 4),
-          const Icon(Icons.chevron_right_rounded),
-        ],
-      ],
+      children: [Text(value, style: const TextStyle(color: StashColors.muted))],
     ),
-    onTap: onTap,
   );
 }

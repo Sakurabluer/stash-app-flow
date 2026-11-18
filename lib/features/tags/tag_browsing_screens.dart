@@ -1,16 +1,15 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
-import '../../core/server/server_session.dart';
 import '../../shared/models/scene.dart';
 import '../../shared/models/tag_media.dart';
 import '../../shared/providers.dart';
 import '../../shared/widgets/scene_widgets.dart';
+import '../../shared/widgets/image_widgets.dart';
 
 class TagListScreen extends ConsumerStatefulWidget {
   const TagListScreen({super.key, required this.sceneCategoriesOnly});
@@ -34,7 +33,7 @@ class _TagListScreenState extends ConsumerState<TagListScreen> {
   @override
   Widget build(BuildContext context) {
     final tags = ref.watch(tagsProvider);
-    final title = widget.sceneCategoriesOnly ? '场景分类' : '标签';
+    final title = widget.sceneCategoriesOnly ? '视频标签' : '标签';
     return Scaffold(
       appBar: AppBar(
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -348,7 +347,7 @@ class _TagMediaScreenState extends ConsumerState<TagMediaScreen> {
                 _loadInitial();
               },
               decoration: InputDecoration(
-                hintText: isScenes ? '搜索当前分类中的场景' : '搜索当前标签中的图片',
+                hintText: isScenes ? '搜索当前标签中的视频' : '搜索当前标签中的图片',
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: _searchController.text.isEmpty
                     ? null
@@ -414,7 +413,7 @@ class _TagMediaScreenState extends ConsumerState<TagMediaScreen> {
                                         scene: _scenes[index],
                                         index: index,
                                       )
-                                    : _ImageCard(image: _images[index]),
+                                    : StashImageCard(image: _images[index]),
                               );
                             },
                           ),
@@ -434,105 +433,4 @@ class _TagMediaScreenState extends ConsumerState<TagMediaScreen> {
       ),
     );
   }
-}
-
-class _ImageCard extends ConsumerWidget {
-  const _ImageCard({required this.image});
-
-  final StashImage image;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(activeServerSessionProvider);
-    final headers = session == null ? null : {'ApiKey': session.apiKey};
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      onTap: session == null
-          ? null
-          : () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => _ImageViewer(image: image, headers: headers!),
-              ),
-            ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: image.thumbnailUrl.isEmpty
-                  ? const ColoredBox(
-                      color: StashColors.surfaceHigh,
-                      child: Center(child: Icon(Icons.broken_image_outlined)),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: image.thumbnailUrl,
-                      httpHeaders: headers,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (_, _) => const ColoredBox(
-                        color: StashColors.surfaceHigh,
-                        child: Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                      errorWidget: (_, _, _) => const ColoredBox(
-                        color: StashColors.surfaceHigh,
-                        child: Center(child: Icon(Icons.broken_image_outlined)),
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            image.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            image.width > 0 ? '${image.width} × ${image.height}' : '图片',
-            style: const TextStyle(fontSize: 10, color: StashColors.muted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ImageViewer extends StatelessWidget {
-  const _ImageViewer({required this.image, required this.headers});
-
-  final StashImage image;
-  final Map<String, String> headers;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.black,
-    appBar: AppBar(
-      backgroundColor: Colors.black,
-      title: Text(image.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-    ),
-    body: Center(
-      child: InteractiveViewer(
-        minScale: 0.8,
-        maxScale: 5,
-        child: CachedNetworkImage(
-          imageUrl: image.imageUrl.isEmpty
-              ? image.thumbnailUrl
-              : image.imageUrl,
-          httpHeaders: headers,
-          fit: BoxFit.contain,
-          placeholder: (_, _) =>
-              const Center(child: CircularProgressIndicator()),
-          errorWidget: (_, _, _) => const EmptyState(
-            icon: Icons.broken_image_outlined,
-            title: '图片加载失败',
-            message: '请检查服务器中的图片文件。',
-          ),
-        ),
-      ),
-    ),
-  );
 }

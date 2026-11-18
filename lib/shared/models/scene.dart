@@ -16,6 +16,7 @@ class Scene {
     required this.height,
     required this.sizeBytes,
     required this.tags,
+    this.files = const [],
   });
 
   final String id;
@@ -34,6 +35,7 @@ class Scene {
   final int height;
   final int sizeBytes;
   final List<SceneTag> tags;
+  final List<SceneFile> files;
 
   factory Scene.fromJson(Map<String, dynamic> json) {
     final files = (json['files'] as List<dynamic>? ?? const []);
@@ -70,6 +72,12 @@ class Scene {
             (item) => SceneTag.fromJson(Map<String, dynamic>.from(item as Map)),
           )
           .where((tag) => tag.id.isNotEmpty && tag.name.isNotEmpty)
+          .toList(growable: false),
+      files: files
+          .map(
+            (item) =>
+                SceneFile.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList(growable: false),
     );
   }
@@ -115,6 +123,18 @@ class Scene {
         ? uri.replace(query: '')
         : uri.replace(queryParameters: params);
   }
+}
+
+class SceneFile {
+  const SceneFile({required this.path, required this.basename});
+
+  final String path;
+  final String basename;
+
+  factory SceneFile.fromJson(Map<String, dynamic> json) => SceneFile(
+    path: json['path'] as String? ?? '',
+    basename: json['basename'] as String? ?? '',
+  );
 }
 
 class SceneTag {

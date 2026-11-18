@@ -12,9 +12,11 @@ Stash Flow 是面向 Android 的非官方 Stash Server 客户端，使用 Flutte
 - 使用 Android 安全存储分别保存 API Key
 - 最近添加、随机焦点推荐和随机推荐
 - 场景分页、搜索、筛选及 Stash 服务端排序
-- 标签和场景分类浏览，支持视频与图片
+- 标签浏览，支持视频与图片
 - 按服务器隔离的本地收藏
 - 视频详情、文件路径和可点击标签
+- “全部”页多级目录浏览、图片分页与缩放、子目录视频/图片汇总、常用与隐藏目录、同目录视频
+- 手动扫描媒体库或当前目录、查看任务状态及完成后刷新
 - 播放器支持切换 Stash 服务端提供的原始流、转码格式和分辨率
 - 自动横竖屏播放器、前后 10 秒和临时 2 倍速
 
@@ -36,6 +38,13 @@ flutter build apk --debug
 
 详细恢复和构建说明见 [SOURCE_BACKUP_GUIDE.md](SOURCE_BACKUP_GUIDE.md)。
 正式发布签名的本机配置说明见 [SIGNING.md](SIGNING.md)。
+
+## 项目 Skill
+
+[stash-flow-delivery](.agents/skills/stash-flow-delivery/SKILL.md) 记录需求确认、
+功能开发、Stash 联调、测试、ARM64 APK 打包及验收后提交 Git 的流程。
+项目根目录的 [AGENTS.md](AGENTS.md) 提供入口；Skill 附带构建和 APK 校验脚本。
+测试包默认仅本地交付，按用户当前指令决定提交、推送或发布。
 
 ## 数据与隐私
 

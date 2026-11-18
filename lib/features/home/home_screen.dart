@@ -16,6 +16,19 @@ class HomeScreen extends ConsumerWidget {
     final recommended = ref.watch(recommendedScenesProvider);
     final featured = ref.watch(featuredSceneProvider);
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'STASH FLOW',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
+        actions: [
+          IconButton(
+            tooltip: '搜索视频',
+            onPressed: () => context.push('/search'),
+            icon: const Icon(Icons.search_rounded),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.wait([
@@ -96,17 +109,21 @@ class _HomeContent extends StatelessWidget {
         if (continuing.isNotEmpty)
           SliverToBoxAdapter(
             child: _MediaRail(
-              title: '继续观看',
+              title: '最近未看完',
               scenes: continuing,
               showProgress: true,
             ),
           ),
         SliverToBoxAdapter(
-          child: _MediaRail(title: '最近添加', scenes: scenes.take(10).toList()),
+          child: _MediaRail(
+            title: '最近添加',
+            scenes: scenes.take(10).toList(),
+            showAll: true,
+          ),
         ),
         if (recommendedScenes.isNotEmpty)
           SliverToBoxAdapter(
-            child: _MediaRail(title: '为你推荐', scenes: recommendedScenes),
+            child: _MediaRail(title: '随机发现', scenes: recommendedScenes),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 28)),
       ],
@@ -141,46 +158,6 @@ class _Hero extends StatelessWidget {
               ),
             ),
           ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 13, 14, 0),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Row(
-                  children: [
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: StashColors.accent,
-                        borderRadius: BorderRadius.all(Radius.circular(6)),
-                      ),
-                      child: SizedBox.square(
-                        dimension: 31,
-                        child: Icon(
-                          Icons.play_arrow_rounded,
-                          color: Color(0xFF10200E),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 9),
-                    const Text(
-                      'STASH FLOW',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton.filledTonal(
-                      tooltip: '搜索',
-                      onPressed: () => context.go('/search'),
-                      icon: const Icon(Icons.search_rounded),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
           Positioned(
             left: 20,
             right: 20,
@@ -189,7 +166,7 @@ class _Hero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '随机推荐',
+                  '随机发现',
                   style: TextStyle(
                     color: StashColors.accentBright,
                     fontSize: 11,
@@ -247,19 +224,21 @@ class _Hero extends StatelessWidget {
   }
 }
 
-class _MediaRail extends StatelessWidget {
+class _MediaRail extends ConsumerWidget {
   const _MediaRail({
     required this.title,
     required this.scenes,
     this.showProgress = false,
+    this.showAll = false,
   });
 
   final String title;
   final List<Scene> scenes;
   final bool showProgress;
+  final bool showAll;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 9),
       child: Column(
@@ -277,10 +256,16 @@ class _MediaRail extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                TextButton(
-                  onPressed: () => context.go('/library'),
-                  child: const Text('查看全部'),
-                ),
+                if (showAll)
+                  TextButton(
+                    onPressed: () {
+                      ref
+                          .read(libraryProvider.notifier)
+                          .changeSort('created_at', 'DESC');
+                      context.go('/library');
+                    },
+                    child: const Text('查看全部'),
+                  ),
               ],
             ),
           ),

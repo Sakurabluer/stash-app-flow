@@ -6,6 +6,8 @@ import '../core/server/server_session.dart';
 import '../features/favorites/favorites_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/library/library_screen.dart';
+import '../features/directories/directory_screen.dart';
+import '../features/scanning/scan_provider.dart';
 import '../features/onboarding/connect_screen.dart';
 import '../features/player/player_screen.dart';
 import '../features/scene_detail/scene_detail_screen.dart';
@@ -21,6 +23,7 @@ class StashApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(scanProvider);
     return MaterialApp.router(
       title: 'Stash Flow',
       debugShowCheckedModeBanner: false,
@@ -44,6 +47,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/directories',
+        redirect: (_, state) => directoryLocation(
+          state.uri.queryParameters['path'] ?? '/',
+          sceneId: state.uri.queryParameters['scene'],
+        ),
+      ),
+      GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       GoRoute(path: '/loading', builder: (_, _) => const _LoadingScreen()),
       GoRoute(path: '/connect', builder: (_, _) => const ConnectScreen()),
       GoRoute(
@@ -77,7 +88,27 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+              GoRoute(
+                path: '/all',
+                builder: (_, _) => const DirectoryScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'directory',
+                    builder: (_, state) => DirectoryScreen(
+                      path: state.uri.queryParameters['path'],
+                      sceneId: state.uri.queryParameters['scene'],
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'contents',
+                    builder: (_, state) => DirectoryScreen(
+                      path: state.uri.queryParameters['path'],
+                      recursive: true,
+                      images: state.uri.queryParameters['type'] == 'images',
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           StatefulShellBranch(

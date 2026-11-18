@@ -58,12 +58,14 @@ class SceneCard extends ConsumerWidget {
     this.index = 0,
     this.width,
     this.showProgress = false,
+    this.displayTitle,
   });
 
   final Scene scene;
   final int index;
   final double? width;
   final bool showProgress;
+  final String? displayTitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -127,7 +129,7 @@ class SceneCard extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              scene.displayTitle,
+              displayTitle ?? scene.displayTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),

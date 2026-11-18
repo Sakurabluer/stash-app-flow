@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../shared/models/scene.dart';
 import '../../shared/providers.dart';
 import '../../shared/widgets/scene_widgets.dart';
+import '../scanning/scan_widgets.dart';
 
 enum _LibraryFilter { all, unwatched, ultraHd, long }
 
@@ -18,11 +19,16 @@ class _SceneSort {
 }
 
 const _sceneSorts = <_SceneSort>[
+  _SceneSort('created_at', '添加时间', 'DESC'),
+  _SceneSort('title', '标题', 'ASC'),
+  _SceneSort('path', '文件名 / 路径', 'ASC'),
+  _SceneSort('duration', '视频时长', 'DESC'),
+  _SceneSort('rating', '评分', 'DESC'),
+  _SceneSort('random', '随机', 'DESC'),
   _SceneSort('organized', '整理状态', 'DESC'),
   _SceneSort('date', '场景日期', 'DESC'),
   _SceneSort('file_count', '文件数量', 'DESC'),
   _SceneSort('filesize', '文件大小', 'DESC'),
-  _SceneSort('duration', '视频时长', 'DESC'),
   _SceneSort('framerate', '帧率', 'DESC'),
   _SceneSort('resolution', '分辨率', 'DESC'),
   _SceneSort('bitrate', '比特率', 'DESC'),
@@ -35,18 +41,13 @@ const _sceneSorts = <_SceneSort>[
   _SceneSort('perceptual_similarity', '感知相似度', 'DESC'),
   _SceneSort('performer_age', '演员年龄', 'DESC'),
   _SceneSort('studio', '工作室', 'ASC'),
-  _SceneSort('title', '标题', 'ASC'),
-  _SceneSort('path', '文件名 / 路径', 'ASC'),
-  _SceneSort('rating', '评分', 'DESC'),
   _SceneSort('file_mod_time', '文件修改时间', 'DESC'),
   _SceneSort('tag_count', '标签数量', 'DESC'),
   _SceneSort('performer_count', '演员数量', 'DESC'),
-  _SceneSort('random', '随机', 'DESC'),
   _SceneSort('o_counter', 'O 计数', 'DESC'),
   _SceneSort('last_o_at', '最近 O 时间', 'DESC'),
   _SceneSort('group_scene_number', '片组场景编号', 'ASC'),
   _SceneSort('code', '场景编号', 'ASC'),
-  _SceneSort('created_at', '添加时间', 'DESC'),
   _SceneSort('updated_at', '更新时间', 'DESC'),
 ];
 
@@ -93,7 +94,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   };
 
   String _filterLabel(_LibraryFilter filter) => switch (filter) {
-    _LibraryFilter.all => '全部',
+    _LibraryFilter.all => '不限',
     _LibraryFilter.unwatched => '未观看',
     _LibraryFilter.ultraHd => '4K',
     _LibraryFilter.long => '长片',
@@ -113,7 +114,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         actions: [
           IconButton(
             tooltip: '搜索媒体库',
-            onPressed: () => context.go('/search'),
+            onPressed: () => context.push('/search'),
             icon: const Icon(Icons.search_rounded),
           ),
           const SizedBox(width: 6),
@@ -136,6 +137,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                const SliverToBoxAdapter(child: ScanStatusCard(readOnly: true)),
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _LibraryToolbarDelegate(
@@ -161,7 +163,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     child: Row(
                       children: [
                         Text(
-                          '${data.total} 个场景',
+                          '${data.total} 部视频',
                           style: const TextStyle(
                             color: StashColors.muted,
                             fontSize: 11,
@@ -187,7 +189,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   const SliverFillRemaining(
                     child: EmptyState(
                       icon: Icons.filter_alt_off_outlined,
-                      title: '没有匹配的场景',
+                      title: '没有匹配的视频',
                       message: '更换筛选条件后再试。',
                     ),
                   )
@@ -301,7 +303,7 @@ class _LibraryMenu extends StatelessWidget {
       ),
       SubmenuButton(
         menuChildren: [
-          for (final value in _sceneSorts)
+          for (final value in _sceneSorts.take(6))
             MenuItemButton(
               leadingIcon: Icon(
                 sort.field == value.field
@@ -311,6 +313,16 @@ class _LibraryMenu extends StatelessWidget {
               onPressed: () => onSortSelected(value),
               child: Text(value.label),
             ),
+          SubmenuButton(
+            menuChildren: [
+              for (final value in _sceneSorts.skip(6))
+                MenuItemButton(
+                  onPressed: () => onSortSelected(value),
+                  child: Text(value.label),
+                ),
+            ],
+            child: const Text('更多排序'),
+          ),
         ],
         child: Text('排序：${sort.label}'),
       ),

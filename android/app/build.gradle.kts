@@ -33,6 +33,27 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Keep dependency native libraries aligned with Flutter's selected targets.
+        // ABI splits configure their own filters.
+        if (project.findProperty("split-per-abi") != "true") {
+            val selectedAbis = (project.findProperty("target-platform") as? String)
+                ?.split(",")
+                ?.mapNotNull {
+                    when (it.trim()) {
+                        "android-arm" -> "armeabi-v7a"
+                        "android-arm64" -> "arm64-v8a"
+                        "android-x64" -> "x86_64"
+                        else -> null
+                    }
+                }.orEmpty()
+            if (selectedAbis.isNotEmpty()) {
+                ndk {
+                    abiFilters.clear()
+                    abiFilters.addAll(selectedAbis)
+                }
+            }
+        }
     }
 
     signingConfigs {

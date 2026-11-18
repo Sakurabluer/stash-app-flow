@@ -51,7 +51,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           onChanged: _onChanged,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: '搜索场景、文件名或标签',
+            hintText: '搜索视频标题或文件名',
             prefixIcon: const Icon(Icons.search_rounded),
             suffixIcon: _controller.text.isEmpty
                 ? null
@@ -79,7 +79,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ? EmptyState(
                       icon: Icons.search_off_rounded,
                       title: '没有找到结果',
-                      message: '没有与“$_query”匹配的场景。',
+                      message: '没有与“$_query”匹配的视频。',
                     )
                   : Column(
                       children: [
@@ -88,7 +88,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              '找到 ${page.total} 个场景',
+                              '找到 ${page.total} 部视频',
                               style: const TextStyle(
                                 color: StashColors.muted,
                                 fontSize: 11,
@@ -128,19 +128,8 @@ class _SearchPrompt extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            '按标题、文件名或标签查找场景',
+            '按标题或文件名查找全库视频',
             style: TextStyle(color: StashColors.muted),
-          ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final query in const ['4K', '1080p', '合集'])
-                ActionChip(
-                  label: Text(query),
-                  onPressed: () => onSelected(query),
-                ),
-            ],
           ),
         ],
       ),

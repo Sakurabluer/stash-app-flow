@@ -32,7 +32,11 @@ class AppShell extends StatelessWidget {
             selectedIcon: Icon(Icons.favorite_rounded),
             label: '收藏',
           ),
-          NavigationDestination(icon: Icon(Icons.search_rounded), label: '搜索'),
+          NavigationDestination(
+            icon: Icon(Icons.folder_outlined),
+            selectedIcon: Icon(Icons.folder_rounded),
+            label: '全部',
+          ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings_rounded),

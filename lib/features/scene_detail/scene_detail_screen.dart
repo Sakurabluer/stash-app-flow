@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../shared/models/scene.dart';
 import '../../shared/providers.dart';
 import '../../shared/widgets/scene_widgets.dart';
+import '../directories/directory_screen.dart';
 
 class SceneDetailScreen extends ConsumerWidget {
   const SceneDetailScreen({
@@ -114,6 +115,7 @@ class _SceneDetail extends ConsumerWidget {
                   label: const Text('播放'),
                 ),
                 const SizedBox(height: 14),
+                SameDirectoryEntry(scene: scene),
                 Center(
                   child: IconButton.filledTonal(
                     tooltip: isFavorite ? '取消收藏' : '收藏',
@@ -171,7 +173,15 @@ class _SceneDetail extends ConsumerWidget {
                 _InfoRow(label: '文件大小', value: scene.sizeLabel),
                 _InfoRow(label: '播放次数', value: '${scene.playCount}'),
                 if (scene.filePath.isNotEmpty)
-                  _InfoRow(label: '文件路径', value: scene.filePath),
+                  _InfoRow(
+                    label: '文件路径',
+                    value: scene.files.isEmpty
+                        ? scene.filePath
+                        : scene.files
+                              .map((file) => file.path)
+                              .where((p) => p.isNotEmpty)
+                              .join('\n'),
+                  ),
                 if (scene.rating100 != null)
                   _InfoRow(
                     label: '评分',

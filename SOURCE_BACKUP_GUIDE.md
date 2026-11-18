@@ -4,11 +4,11 @@
 
 - 应用名称：Stash Flow
 - 应用包名：`io.github.sakurabluer.stashflow`
-- 应用版本：`1.0.1+2`
+- 当前源码版本：`1.2.0+5007`（本轮测试包名称为 `1.2.0-test`）
 - Flutter：`3.44.8`
 - Dart：`3.12.2`
 - Android 最低版本：API 26（Android 8.0）
-- 备份日期：2026-07-29
+- 初始备份日期：2026-07-29；开发交付流程更新：2026-11-18
 
 ## 压缩包内容
 
@@ -21,6 +21,7 @@
 - `.metadata`、`.fvmrc`：Flutter 项目信息
 - `README.md`、`FLUTTER_DEVELOPMENT_GUIDE.md`：项目说明
 - `SOURCE_BACKUP_GUIDE.md`：本手册
+- `AGENTS.md`、`.agents/skills/stash-flow-delivery/`：项目开发与交付 Skill 和构建校验脚本
 
 压缩包不包含构建产物、Flutter SDK、Gradle 缓存、IDE 配置和
 `android/local.properties`。这些文件体积大或包含当前电脑的绝对路径，恢复时会自动生成。
@@ -78,11 +79,14 @@ adb install -r build\app\outputs\flutter-apk\app-debug.apk
 发布或传到手机前，在 `pubspec.yaml` 中递增版本，例如：
 
 ```yaml
-version: 1.0.2+3
+version: 1.3.0+5008
 ```
 
 加号前是用户看到的版本号，加号后是 Android `versionCode`，每次发布必须增大。
-当前工程使用 Android debug 签名，仅适合开发测试。正式分发前需要配置独立 release keystore，且密钥文件不能提交或放入普通源码备份。
+当前工程的 release 构建使用独立发布签名，配置见 `SIGNING.md`。测试包也使用原发布签名，便于覆盖安装并保留连接与收藏。密钥文件和密码不能提交或放入普通源码备份。
+
+ARM64 测试包的版本递增、签名、ABI 检查和提交推送步骤见
+[项目交付 Skill](.agents/skills/stash-flow-delivery/SKILL.md)。源码更新不自动发布 GitHub Release。
 
 ## 主要模块
 
